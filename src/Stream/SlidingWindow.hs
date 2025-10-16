@@ -1,7 +1,14 @@
 module Stream.SlidingWindow (slidingWindows) where
 
-import Types (Point, Window)
+import Data.List (tails)
+import Types (Point (..), Window (..))
 
--- генерация скользящих окон фиксированного размера k
 slidingWindows :: Int -> [Point] -> [Window]
-slidingWindows = undefined
+slidingWindows k pts
+  | k <= 0 = []
+  | otherwise =
+      [ Window w
+      | t <- tails pts
+      , let w = take k t
+      , length w == k
+      ]

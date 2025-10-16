@@ -1,27 +1,27 @@
-module Types
-  ( X
-  , Y
-  , Point(..)
-  , Interval(..)
-  , Delimiter(..)
-  , AlgorithmTag(..)
-  , LinearConfig(..)
-  , WindowSize(..)
-  , NewtonConfig(..)
-  , StartMode(..)
-  , Step(..)
-  , Precision(..)
-  , SamplerConfig(..)
-  , Algorithm(..)
-  , Config(..)
-    -- ошибки
-  , ParseError(..)
-  , ValidationError(..)
-  , EngineError(..)
-    -- выходные структуры
-  , ResultPoint(..)
-  , Window(..)
-  ) where
+module Types (
+  X,
+  Y,
+  Point (..),
+  Interval (..),
+  Delimiter (..),
+  AlgorithmTag (..),
+  LinearConfig (..),
+  WindowSize (..),
+  NewtonConfig (..),
+  StartMode (..),
+  Step (..),
+  Precision (..),
+  SamplerConfig (..),
+  Algorithm (..),
+  Config (..),
+  -- ошибки
+  ParseError (..),
+  ValidationError (..),
+  EngineError (..),
+  -- выходные структуры
+  ResultPoint (..),
+  Window (..),
+) where
 
 type X = Double
 type Y = Double
@@ -29,17 +29,20 @@ type Y = Double
 data Point = Point
   { px :: X
   , py :: Y
-  } deriving (Show, Eq)
+  }
+  deriving (Show, Eq)
 
 data Interval = Interval
-  { iLeft  :: X
+  { iLeft :: X
   , iRight :: X
-  } deriving (Show, Eq)
+  }
+  deriving (Show, Eq)
 
 data Delimiter
   = Semicolon
   | Tab
   | Space
+  | Comma
   | Auto
   deriving (Show, Eq)
 
@@ -48,30 +51,32 @@ data AlgorithmTag
   | NewtonTag
   deriving (Show, Eq, Ord, Enum, Bounded)
 
-data LinearConfig = LinearConfig
+newtype LinearConfig = LinearConfig
   deriving (Show, Eq)
 
-newtype WindowSize = WindowSize { unWindowSize :: Int }
+newtype WindowSize = WindowSize {unWindowSize :: Int}
   deriving (Show, Eq, Ord)
 
-data NewtonConfig = NewtonConfig
+newtype NewtonConfig = NewtonConfig
   { windowSize :: WindowSize
-  } deriving (Show, Eq)
+  }
+  deriving (Show, Eq)
 
 data StartMode = AlignFirst | PassThrough
   deriving (Show, Eq)
 
-newtype Step = Step { unStep :: Double }
+newtype Step = Step {unStep :: Double}
   deriving (Show, Eq, Ord)
 
-newtype Precision = Precision { unPrecision :: Int }
+newtype Precision = Precision {unPrecision :: Int}
   deriving (Show, Eq, Ord)
 
 data SamplerConfig = SamplerConfig
-  { step      :: Step
+  { step :: Step
   , startMode :: StartMode
   , precision :: Maybe Precision
-  } deriving (Show, Eq)
+  }
+  deriving (Show, Eq)
 
 data Algorithm
   = AlgorithmLinear LinearConfig
@@ -80,14 +85,16 @@ data Algorithm
 
 data Config = Config
   { algorithms :: [Algorithm]
-  , delimiter  :: Delimiter
-  , sampler    :: SamplerConfig
-  } deriving (Show, Eq)
+  , delimiter :: Delimiter
+  , sampler :: SamplerConfig
+  }
+  deriving (Show, Eq)
 
 data ParseError = ParseError
-  { peLine    :: Int
+  { peLine :: Int
   , peMessage :: String
-  } deriving (Show, Eq)
+  }
+  deriving (Show, Eq)
 
 data ValidationError
   = NonMonotonicX X X
@@ -102,9 +109,10 @@ newtype EngineError = EngineError String
 
 data ResultPoint = ResultPoint
   { rpAlgo :: AlgorithmTag
-  , rpX    :: X
-  , rpY    :: Y
-  } deriving (Show, Eq)
+  , rpX :: X
+  , rpY :: Y
+  }
+  deriving (Show, Eq)
 
-newtype Window = Window { unWindow :: [Point] }
+newtype Window = Window {unWindow :: [Point]}
   deriving (Show, Eq)
