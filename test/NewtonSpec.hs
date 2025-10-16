@@ -13,14 +13,11 @@ import Types (
   Point (..),
   Window (..),
   WindowSize (..),
-  X,
-  Y,
  )
 
 approx :: Double -> Double -> Bool
 approx a b = abs (a - b) <= 1e-9
 
--- helper to build strictly increasing xs
 mkXs :: Int -> Double -> Double -> [Double]
 mkXs n start step = take n [start, start + step ..]
 
@@ -48,7 +45,7 @@ spec = describe "Newton interpolation" $ do
 
   describe "evalAt: exactness on polynomials of degree < n" $ do
     it "exact on cubic with n=4 (unit)" $ do
-      let coeffs = [1, -2, 0.5, 0.1] -- degree 3
+      let coeffs = [1, -2, 0.5, 0.1]
           cfg = NewtonConfig (WindowSize 4)
           xs = [-1, 0, 2, 5]
           w = Window [Point x (polyEval coeffs x) | x <- xs]
@@ -73,5 +70,5 @@ instance Arbitrary Finite where
 genStartStep :: Gen (Double, Double)
 genStartStep = do
   s <- choose (-10, 10)
-  t <- choose (0.5, 5) -- positive step to ensure strictly increasing xs
+  t <- choose (0.5, 5)
   pure (s, t)

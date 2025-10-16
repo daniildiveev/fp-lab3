@@ -4,7 +4,15 @@ module Interpolation.Newton (
   newtonEvalAt,
 ) where
 
-import Types (Interval (..), NewtonConfig (..), Point (..), Window (..), WindowSize (..), X, Y)
+import Types (
+  Interval (..),
+  NewtonConfig (..),
+  Point (..),
+  Window (..),
+  WindowSize (..),
+  X,
+  Y,
+ )
 
 newtonRequiredWindowSize :: NewtonConfig -> Int
 newtonRequiredWindowSize (NewtonConfig (WindowSize n)) = n
@@ -36,19 +44,31 @@ newtonEvalAt cfg (Window pts) x
  where
   n = newtonRequiredWindowSize cfg
 
+-- No partials; no unused bindings.
 dividedDiffCoeffs :: [X] -> [Y] -> [Y]
 dividedDiffCoeffs xs ys =
   let n = length xs
+      go :: Int -> [Y] -> [Y] -> [Y]
       go j a acc
-        | j == 0 = go 1 a (head a : acc)
+        | j == 0 =
+            case a of
+              c0 : _ -> go 1 a (c0 : acc) -- c0 = f[x0]
+              [] -> reverse acc
         | j == n = reverse acc
         | otherwise =
-            let a' = [(a !! (i + 1) - a !! i) / (xs !! (i + j) - xs !! i) | i <- [0 .. n - j - 1]]
-             in go (j + 1) a' (head a' : acc)
+            let pairs = zip a (drop 1 a)
+                a' =
+                  [ (aNext - aCur) / (xs !! (i + j) - xs !! i)
+                  | (i, (aCur, aNext)) <- zip [0 ..] pairs
+                  , i + j < n
+                  ]
+             in case a' of
+                  c : _ -> go (j + 1) a' (c : acc)
+                  [] -> reverse acc
    in if null ys then [] else go 0 ys []
 
 evalNewton :: [X] -> [Y] -> X -> Y
 evalNewton xs coeffs x =
   case reverse (zip xs coeffs) of
     [] -> 0
-    ((xj, cj) : rest) -> foldl (\acc (xi, ci) -> ci + (x - xi) * acc) cj rest
+    ((_, cj) : rest) -> foldl (\acc (xi, ci) -> ci + (x - xi) * acc) cj rest

@@ -12,8 +12,6 @@ import Types (
   LinearConfig (..),
   Point (..),
   Window (..),
-  X,
-  Y,
  )
 
 approx :: Double -> Double -> Bool

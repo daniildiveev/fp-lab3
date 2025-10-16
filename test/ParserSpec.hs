@@ -1,6 +1,5 @@
 module ParserSpec (spec) where
 
-import Data.Either (isRight)
 import Parse (
   autodetectDelimiter,
   parseLine,
@@ -19,11 +18,13 @@ newtype FiniteD = FiniteD {unFinite :: Double} deriving (Show)
 instance Arbitrary FiniteD where
   arbitrary = FiniteD <$> suchThat arbitrary (\d -> not (isNaN d) && not (isInfinite d))
 
+-- make exhaustive even if your Delimiter has more constructors (e.g. Comma)
 mkLine :: Delimiter -> Double -> Double -> String
 mkLine Semicolon x y = show x <> ";" <> show y
 mkLine Tab x y = show x <> "\t" <> show y
 mkLine Space x y = show x <> " " <> show y
-mkLine Auto x y = show x <> " " <> show y -- not used directly
+mkLine Auto x y = show x <> " " <> show y
+mkLine _ x y = show x <> " " <> show y -- default for any extra constructor
 
 spec :: Spec
 spec = describe "Parse" $ do

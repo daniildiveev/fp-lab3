@@ -4,8 +4,11 @@ module Parse (
   streamPoints,
 ) where
 
+import Data.Bifunctor (first)
+import Data.Char (isSpace)
 import Data.List.Split (splitOn)
-import Types (Delimiter, ParseError, Point)
+import Text.Read (readMaybe)
+import Types (Delimiter (..), ParseError (..), Point (..))
 
 trim :: String -> String
 trim = dropWhileEnd isSpace . dropWhile isSpace
@@ -21,12 +24,9 @@ autodetectDelimiter s0 =
           if '\t' `elem` s
             then Just Tab
             else
-              if ',' `elem` s
-                then Just Comma
-                else
-                  if length (words s) == 2
-                    then Just Space
-                    else Nothing
+              if length (words s) == 2
+                then Just Space
+                else Nothing
 
 maybeToEither :: e -> Maybe a -> Either e a
 maybeToEither e = maybe (Left e) Right
@@ -36,15 +36,16 @@ parseLine d0 s0 = do
   let s = trim s0
   d <- case d0 of
     Auto ->
-      maybeToEither (ParseError 0 "cannot autodetect delimiter") (autodetectDelimiter s)
+      maybeToEither
+        (ParseError 0 "cannot autodetect delimiter")
+        (autodetectDelimiter s)
     _ -> Right d0
-
   let parts = case d of
         Semicolon -> splitOn ";" s
         Tab -> splitOn "\t" s
         Comma -> splitOn "," s
-        Space -> words s -- robust to multiple spaces
-        Auto -> words s -- unreachable after the case above, but keeps totality
+        Space -> words s
+        Auto -> words s -- logically unreachable after the case above
   case parts of
     [sx, sy] -> do
       x <- maybeToEither (ParseError 0 ("bad X: " <> sx)) (readMaybe sx)
@@ -54,5 +55,10 @@ parseLine d0 s0 = do
 
 streamPoints :: Delimiter -> [String] -> Either ParseError [Point]
 streamPoints d =
-  traverse (\(i, ln) -> first (\(ParseError _ msg) -> ParseError i msg) (parseLine d ln))
+  traverse
+    ( \(i, ln) ->
+        first
+          (\(ParseError _ msg) -> ParseError i msg)
+          (parseLine d ln)
+    )
     . zip [1 ..]
