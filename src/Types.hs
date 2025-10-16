@@ -51,7 +51,7 @@ data AlgorithmTag
   | NewtonTag
   deriving (Show, Eq, Ord, Enum, Bounded)
 
-newtype LinearConfig = LinearConfig
+data LinearConfig = LinearConfig
   deriving (Show, Eq)
 
 newtype WindowSize = WindowSize {unWindowSize :: Int}
