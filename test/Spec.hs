@@ -9,8 +9,8 @@ import qualified NewtonSpec
 import qualified ParserSpec
 import qualified PrinterSpec
 import qualified ResamplerSpec
-import qualified WindowSpec
 import qualified ValidateSpec
+import qualified WindowSpec
 
 main :: IO ()
 main = hspec $ do

@@ -17,7 +17,7 @@ import Util.Validate (stepValidate)
 
 import Data.Maybe (fromMaybe)
 import System.Exit (exitFailure)
-import System.IO (BufferMode (..), hPutStrLn, hSetBuffering, stderr, stdin, stdout, isEOF)
+import System.IO (BufferMode (..), hPutStrLn, hSetBuffering, isEOF, stderr, stdin, stdout)
 
 main :: IO ()
 main = do

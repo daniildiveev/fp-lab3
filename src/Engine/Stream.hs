@@ -1,38 +1,44 @@
-module Engine.Stream
-  ( EngineState
-  , initEngineState
-  , stepEngine
-  , flushEngine
-  ) where
+module Engine.Stream (
+  EngineState,
+  initEngineState,
+  stepEngine,
+  flushEngine,
+) where
 
-import Types
-  ( Config(..), SamplerConfig(..)
-  , Algorithm(..), AlgorithmTag(..)
-  , Point(..), Window(..), Interval(..)
-  , ResultPoint(..), X, Y
-  )
-import Interpolation.Linear
-  ( linearRequiredWindowSize
-  , linearSafeInterval
-  , linearEvalAt
-  )
-import Interpolation.Newton
-  ( newtonRequiredWindowSize
-  , newtonSafeInterval
-  , newtonEvalAt
-  )
-import Stream.Resampler (ResamplerState(..), resample)
 import qualified Data.Map.Strict as M
+import Interpolation.Linear (
+  linearEvalAt,
+  linearRequiredWindowSize,
+  linearSafeInterval,
+ )
+import Interpolation.Newton (
+  newtonEvalAt,
+  newtonRequiredWindowSize,
+  newtonSafeInterval,
+ )
+import Stream.Resampler (ResamplerState (..), resample)
+import Types (
+  Algorithm (..),
+  AlgorithmTag (..),
+  Config (..),
+  Interval (..),
+  Point (..),
+  ResultPoint (..),
+  SamplerConfig (..),
+  Window (..),
+  X,
+  Y,
+ )
 
 data AlgoState = AlgoState
-  { asTag         :: AlgorithmTag
-  , asK           :: Int
-  , asSafe        :: Window -> Interval
-  , asEval        :: Window -> X -> Y
-  , asResampler   :: ResamplerState
-  , asWindow      :: [Point]
+  { asTag :: AlgorithmTag
+  , asK :: Int
+  , asSafe :: Window -> Interval
+  , asEval :: Window -> X -> Y
+  , asResampler :: ResamplerState
+  , asWindow :: [Point]
   , asFirstWindow :: Maybe Window
-  , asLastWindow  :: Maybe Window
+  , asLastWindow :: Maybe Window
   }
 
 data EngineState = EngineState
@@ -46,78 +52,81 @@ initEngineState cfg =
     { esAlgos = map (mkAlgo (sampler cfg)) (algorithms cfg)
     , esOrder = orderMap (algorithms cfg)
     }
-  where
-    mkAlgo :: SamplerConfig -> Algorithm -> AlgoState
-    mkAlgo smp alg =
-      case alg of
-        AlgorithmLinear lc ->
-          AlgoState LinearTag
-                    (linearRequiredWindowSize lc)
-                    (linearSafeInterval lc)
-                    (linearEvalAt lc)
-                    rs0
-                    []
-                    Nothing
-                    Nothing
-        AlgorithmNewton nc ->
-          AlgoState NewtonTag
-                    (newtonRequiredWindowSize nc)
-                    (newtonSafeInterval nc)
-                    (newtonEvalAt nc)
-                    rs0
-                    []
-                    Nothing
-                    Nothing
-      where
-        rs0 = ResamplerState { rsStep = step smp, rsStart = startMode smp, rsCursor = Nothing }
+ where
+  mkAlgo :: SamplerConfig -> Algorithm -> AlgoState
+  mkAlgo smp alg =
+    case alg of
+      AlgorithmLinear lc ->
+        AlgoState
+          LinearTag
+          (linearRequiredWindowSize lc)
+          (linearSafeInterval lc)
+          (linearEvalAt lc)
+          rs0
+          []
+          Nothing
+          Nothing
+      AlgorithmNewton nc ->
+        AlgoState
+          NewtonTag
+          (newtonRequiredWindowSize nc)
+          (newtonSafeInterval nc)
+          (newtonEvalAt nc)
+          rs0
+          []
+          Nothing
+          Nothing
+   where
+    rs0 = ResamplerState {rsStep = step smp, rsStart = startMode smp, rsCursor = Nothing}
 
 stepEngine :: Config -> EngineState -> Point -> (EngineState, [ResultPoint])
 stepEngine _ st p =
   let (algos', chunks) = unzip (map (stepAlgo p) (esAlgos st))
       merged = foldl (mergeBy (esOrder st)) [] chunks
-  in (st { esAlgos = algos' }, merged)
+   in (st {esAlgos = algos'}, merged)
 
 flushEngine :: Config -> EngineState -> [ResultPoint]
 flushEngine _ st =
   let outs = map flushAlgo (esAlgos st)
-  in foldl (mergeBy (esOrder st)) [] outs
+   in foldl (mergeBy (esOrder st)) [] outs
 
 stepAlgo :: Point -> AlgoState -> (AlgoState, [ResultPoint])
 stepAlgo p as =
-  let k    = asK as
+  let k = asK as
       win0 = asWindow as
       win1 = if length win0 >= k then drop 1 (win0 ++ [p]) else win0 ++ [p]
-  in if length win1 < k
-        then (as { asWindow = win1 }, [])
+   in if length win1 < k
+        then (as {asWindow = win1}, [])
         else
-          let w          = Window win1
-              iv         = asSafe as w
-              (xs, rs')  = resample (asResampler as) iv
-              ys         = map (asEval as w) xs
-              chunk      = zipWith (ResultPoint (asTag as)) xs ys
-              firstW     = case asFirstWindow as of
-                             Nothing -> Just w
-                             j       -> j
-          in ( as { asWindow = win1
+          let w = Window win1
+              iv = asSafe as w
+              (xs, rs') = resample (asResampler as) iv
+              ys = map (asEval as w) xs
+              chunk = zipWith (ResultPoint (asTag as)) xs ys
+              firstW = case asFirstWindow as of
+                Nothing -> Just w
+                j -> j
+           in ( as
+                  { asWindow = win1
                   , asResampler = rs'
                   , asFirstWindow = firstW
-                  , asLastWindow  = Just w
+                  , asLastWindow = Just w
                   }
-             , chunk
-             )
+              , chunk
+              )
 
 flushAlgo :: AlgoState -> [ResultPoint]
 flushAlgo as =
   case asLastWindow as of
     Nothing -> []
-    Just w  ->
-      let iv         = asSafe as w
+    Just w ->
+      let iv = asSafe as w
           (xs, _rs') = resample (asResampler as) iv
-          ys         = map (asEval as w) xs
-      in zipWith (ResultPoint (asTag as)) xs ys
+          ys = map (asEval as w) xs
+       in zipWith (ResultPoint (asTag as)) xs ys
 
 orderMap :: [Algorithm] -> M.Map AlgorithmTag Int
-orderMap algs = M.fromList (zip (map algoTag algs) [0..])
+orderMap algs = M.fromList (zip (map algoTag algs) [0 ..])
 
 algoTag :: Algorithm -> AlgorithmTag
 algoTag a =
@@ -127,16 +136,17 @@ algoTag a =
 
 mergeBy :: M.Map AlgorithmTag Int -> [ResultPoint] -> [ResultPoint] -> [ResultPoint]
 mergeBy ord = go
-  where
-    prio t = M.findWithDefault maxBound t ord
-    go as bs =
-      case (as, bs) of
-        ([], _) -> bs
-        (_, []) -> as
-        (a:as', b:bs') ->
-          case compare (rpX a) (rpX b) of
-            LT -> a : go as' (b:bs')
-            GT -> b : go (a:as') bs'
-            EQ -> if prio (rpAlgo a) <= prio (rpAlgo b)
-                    then a : go as' (b:bs')
-                    else b : go (a:as') bs'
+ where
+  prio t = M.findWithDefault maxBound t ord
+  go as bs =
+    case (as, bs) of
+      ([], _) -> bs
+      (_, []) -> as
+      (a : as', b : bs') ->
+        case compare (rpX a) (rpX b) of
+          LT -> a : go as' (b : bs')
+          GT -> b : go (a : as') bs'
+          EQ ->
+            if prio (rpAlgo a) <= prio (rpAlgo b)
+              then a : go as' (b : bs')
+              else b : go (a : as') bs'

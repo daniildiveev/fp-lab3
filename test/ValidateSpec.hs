@@ -1,7 +1,7 @@
 module ValidateSpec (spec) where
 
 import Test.Hspec
-import Types (Point(..))
+import Types (Point (..))
 import Util.Validate (stepValidate)
 
 spec :: Spec
@@ -21,8 +21,8 @@ spec = describe "Util.Validate.stepValidate" $ do
 
 isRightE :: Either a b -> Bool
 isRightE (Right _) = True
-isRightE _         = False
+isRightE _ = False
 
 isLeftE :: Either a b -> Bool
-isLeftE (Left  _) = True
-isLeftE _         = False
+isLeftE (Left _) = True
+isLeftE _ = False
