@@ -1,11 +1,16 @@
 module Main (main) where
 
-import qualified EngineSpec
+import Test.Hspec
+
+import qualified CLISpec
+import qualified EngineStreamSpec
 import qualified LinearSpec
 import qualified NewtonSpec
 import qualified ParserSpec
-import Test.Hspec
+import qualified PrinterSpec
+import qualified ResamplerSpec
 import qualified WindowSpec
+import qualified ValidateSpec
 
 main :: IO ()
 main = hspec $ do
@@ -13,4 +18,8 @@ main = hspec $ do
   WindowSpec.spec
   LinearSpec.spec
   NewtonSpec.spec
-  EngineSpec.spec
+  EngineStreamSpec.spec
+  CLISpec.spec
+  PrinterSpec.spec
+  ResamplerSpec.spec
+  ValidateSpec.spec
