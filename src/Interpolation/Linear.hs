@@ -4,28 +4,29 @@ module Interpolation.Linear (
   linearEvalAt,
 ) where
 
-import Types (
-  Interval (..),
-  LinearConfig (..),
-  Point (..),
-  Window (..),
-  X,
-  Y,
- )
+import Types
+  ( Interval (..)
+  , LinearConfig (..)
+  , Point (..)
+  , Window (..)
+  , X, Y
+  , EngineError (..)
+  )
 
 linearRequiredWindowSize :: LinearConfig -> Int
 linearRequiredWindowSize _ = 2
 
-linearSafeInterval :: LinearConfig -> Window -> Interval
-linearSafeInterval _ (Window [Point x1 _, Point x2 _])
-  | x1 <= x2 = Interval x1 x2
-  | otherwise = Interval x2 x1
+linearSafeInterval :: LinearConfig -> Window -> Either EngineError Interval
+linearSafeInterval _ (Window (Point x1 _ : Point x2 _ : _))
+  | x1 < x2   = Right (Interval x1 x2)
+  | x2 < x1   = Right (Interval x2 x1)
+  | otherwise = Left (EngineError "linearSafeInterval: degenerate segment (x1 == x2)")
 linearSafeInterval _ _ =
-  error "linearSafeInterval: window size must be exactly 2"
+  Left (EngineError "linearSafeInterval: window size must be exactly 2")
 
-linearEvalAt :: LinearConfig -> Window -> X -> Y
-linearEvalAt _ (Window [Point x1 y1, Point x2 y2]) x
-  | x2 == x1 = error "linearEvalAt: degenerate segment (x1 == x2)"
-  | otherwise = y1 + (y2 - y1) * (x - x1) / (x2 - x1)
+linearEvalAt :: LinearConfig -> Window -> X -> Either EngineError Y
+linearEvalAt _ (Window (Point x1 y1 : Point x2 y2 : _)) x
+  | x1 == x2  = Left (EngineError "linearEvalAt: degenerate segment (x1 == x2)")
+  | otherwise = Right (y1 + (y2 - y1) * (x - x1) / (x2 - x1))
 linearEvalAt _ _ _ =
-  error "linearEvalAt: window size must be exactly 2"
+  Left (EngineError "linearEvalAt: window size must be exactly 2")

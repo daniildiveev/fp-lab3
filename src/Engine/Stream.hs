@@ -9,12 +9,12 @@ import qualified Data.Map.Strict as M
 import Interpolation.Linear (
   linearEvalAt,
   linearRequiredWindowSize,
-  linearSafeInterval,
+  linearSafeInterval
  )
 import Interpolation.Newton (
   newtonEvalAt,
   newtonRequiredWindowSize,
-  newtonSafeInterval,
+  newtonSafeInterval
  )
 import Stream.Resampler (ResamplerState (..), resample)
 import Types (
@@ -26,19 +26,19 @@ import Types (
   ResultPoint (..),
   SamplerConfig (..),
   Window (..),
-  X,
-  Y,
+  X, Y,
+  EngineError (..)
  )
 
 data AlgoState = AlgoState
-  { asTag :: AlgorithmTag
-  , asK :: Int
-  , asSafe :: Window -> Interval
-  , asEval :: Window -> X -> Y
-  , asResampler :: ResamplerState
-  , asWindow :: [Point]
+  { asTag         :: AlgorithmTag
+  , asK           :: Int
+  , asSafe        :: Window -> Either EngineError Interval
+  , asEval        :: Window -> X -> Either EngineError Y
+  , asResampler   :: ResamplerState
+  , asWindow      :: [Point]
   , asFirstWindow :: Maybe Window
-  , asLastWindow :: Maybe Window
+  , asLastWindow  :: Maybe Window
   }
 
 data EngineState = EngineState
@@ -62,28 +62,22 @@ initEngineState cfg =
           (linearRequiredWindowSize lc)
           (linearSafeInterval lc)
           (linearEvalAt lc)
-          rs0
-          []
-          Nothing
-          Nothing
+          rs0 [] Nothing Nothing
       AlgorithmNewton nc ->
         AlgoState
           NewtonTag
           (newtonRequiredWindowSize nc)
           (newtonSafeInterval nc)
           (newtonEvalAt nc)
-          rs0
-          []
-          Nothing
-          Nothing
+          rs0 [] Nothing Nothing
    where
-    rs0 = ResamplerState {rsStep = step smp, rsStart = startMode smp, rsCursor = Nothing}
+    rs0 = ResamplerState { rsStep = step smp, rsStart = startMode smp, rsCursor = Nothing }
 
 stepEngine :: Config -> EngineState -> Point -> (EngineState, [ResultPoint])
 stepEngine _ st p =
   let (algos', chunks) = unzip (map (stepAlgo p) (esAlgos st))
       merged = foldl (mergeBy (esOrder st)) [] chunks
-   in (st {esAlgos = algos'}, merged)
+   in (st { esAlgos = algos' }, merged)
 
 flushEngine :: Config -> EngineState -> [ResultPoint]
 flushEngine _ st =
@@ -92,38 +86,52 @@ flushEngine _ st =
 
 stepAlgo :: Point -> AlgoState -> (AlgoState, [ResultPoint])
 stepAlgo p as =
-  let k = asK as
+  let k    = asK as
       win0 = asWindow as
       win1 = if length win0 >= k then drop 1 (win0 ++ [p]) else win0 ++ [p]
    in if length win1 < k
-        then (as {asWindow = win1}, [])
+        then (as { asWindow = win1 }, [])
         else
           let w = Window win1
-              iv = asSafe as w
-              (xs, rs') = resample (asResampler as) iv
-              ys = map (asEval as w) xs
-              chunk = zipWith (ResultPoint (asTag as)) xs ys
               firstW = case asFirstWindow as of
-                Nothing -> Just w
-                j -> j
-           in ( as
-                  { asWindow = win1
-                  , asResampler = rs'
-                  , asFirstWindow = firstW
-                  , asLastWindow = Just w
-                  }
-              , chunk
-              )
+                         Nothing -> Just w
+                         j       -> j
+          in case asSafe as w of
+               Left _err ->
+                 ( as { asWindow = win1
+                      , asFirstWindow = firstW
+                      , asLastWindow  = Just w
+                      }
+                 , []
+                 )
+               Right iv ->
+                 let (xs, rs') = resample (asResampler as) iv
+                     ysE        = map (asEval as w) xs
+                     chunk      =
+                       [ ResultPoint (asTag as) x y
+                       | (x, Right y) <- zip xs ysE
+                       ]
+                 in ( as { asWindow = win1
+                         , asResampler = rs'
+                         , asFirstWindow = firstW
+                         , asLastWindow  = Just w
+                         }
+                    , chunk
+                    )
 
 flushAlgo :: AlgoState -> [ResultPoint]
 flushAlgo as =
   case asLastWindow as of
     Nothing -> []
     Just w ->
-      let iv = asSafe as w
-          (xs, _rs') = resample (asResampler as) iv
-          ys = map (asEval as w) xs
-       in zipWith (ResultPoint (asTag as)) xs ys
+      case asSafe as w of
+        Left _err -> []
+        Right iv  ->
+          let (xs, _rs') = resample (asResampler as) iv
+              ysE        = map (asEval as w) xs
+          in [ ResultPoint (asTag as) x y
+             | (x, Right y) <- zip xs ysE
+             ]
 
 orderMap :: [Algorithm] -> M.Map AlgorithmTag Int
 orderMap algs = M.fromList (zip (map algoTag algs) [0 ..])

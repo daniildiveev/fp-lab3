@@ -27,8 +27,7 @@ resample st (Interval l r)
               then []
               else takeWhile (<= r + eps) (iterate (+ step) x0)
 
-          -- safe way to get last element as Maybe without partials
-          lastM = foldl' (\_ a -> Just a) Nothing xs
+          lastM = foldl (\_ a -> Just a) Nothing xs
 
           newC = case lastM of
             Nothing -> rsCursor st

@@ -4,71 +4,83 @@ module Interpolation.Newton (
   newtonEvalAt,
 ) where
 
-import Types (
-  Interval (..),
-  NewtonConfig (..),
-  Point (..),
-  Window (..),
-  WindowSize (..),
-  X,
-  Y,
- )
+import Types
+  ( Interval (..)
+  , NewtonConfig (..)
+  , Point (..)
+  , Window (..)
+  , WindowSize (..)
+  , X, Y
+  , EngineError (..)
+  )
 
 newtonRequiredWindowSize :: NewtonConfig -> Int
 newtonRequiredWindowSize (NewtonConfig (WindowSize n)) = n
 
-newtonSafeInterval :: NewtonConfig -> Window -> Interval
+newtonSafeInterval :: NewtonConfig -> Window -> Either EngineError Interval
 newtonSafeInterval cfg (Window pts)
-  | length pts < n = error "newtonSafeInterval: window smaller than required size"
+  | length pts < n =
+      Left (EngineError "newtonSafeInterval: window smaller than required size")
   | otherwise =
-      let xs = map px (take n pts)
-       in case n `mod` 2 of
-            0 ->
-              let m = n `div` 2
-                  l = m - 1
-                  r = m
-               in Interval (xs !! l) (xs !! r)
-            _ ->
-              let c = (n - 1) `div` 2
-               in Interval (xs !! c) (xs !! (c + 1))
- where
-  n = newtonRequiredWindowSize cfg
+      let xs = take n (map px pts)
+      in case centerInterval xs of
+           Just (l, r)
+             | l < r     -> Right (Interval l r)
+             | l > r     -> Right (Interval r l)
+             | otherwise -> Left (EngineError "newtonSafeInterval: degenerate center interval (l == r)")
+           Nothing       -> Left (EngineError "newtonSafeInterval: insufficient xs")
+  where
+    n = newtonRequiredWindowSize cfg
 
-newtonEvalAt :: NewtonConfig -> Window -> X -> Y
+    centerInterval :: [X] -> Maybe (X, X)
+    centerInterval xs =
+      let m = length xs
+      in case m of
+           _ | m < 2      -> Nothing
+             | even m     -> let i = m `div` 2 - 1
+                                 j = m `div` 2
+                             in pick xs i j
+             | otherwise  -> let c = (m - 1) `div` 2
+                             in pick xs c (c + 1)
+    pick as i j =
+      if i >= 0 && j < length as then Just (as !! i, as !! j) else Nothing
+
+newtonEvalAt :: NewtonConfig -> Window -> X -> Either EngineError Y
 newtonEvalAt cfg (Window pts) x
-  | length pts < n = error "newtonEvalAt: window smaller than required size"
+  | length pts < n =
+      Left (EngineError "newtonEvalAt: window smaller than required size")
   | otherwise =
-      let (xs, ys) = unzip [(px p, py p) | p <- take n pts]
-          coeffs = dividedDiffCoeffs xs ys
-       in evalNewton xs coeffs x
- where
-  n = newtonRequiredWindowSize cfg
+      let (xs, ys) = unzip (map (\p -> (px p, py p)) (take n pts))
+      in do
+        coeffs <- dividedDiffCoeffsE xs ys
+        Right (evalNewton xs coeffs x)
+  where
+    n = newtonRequiredWindowSize cfg
 
--- No partials; no unused bindings.
-dividedDiffCoeffs :: [X] -> [Y] -> [Y]
-dividedDiffCoeffs xs ys =
-  let n = length xs
-      go :: Int -> [Y] -> [Y] -> [Y]
+dividedDiffCoeffsE :: [X] -> [Y] -> Either EngineError [Y]
+dividedDiffCoeffsE xs ys =
+  let m = length xs
       go j a acc
-        | j == 0 =
-            case a of
-              c0 : _ -> go 1 a (c0 : acc) -- c0 = f[x0]
-              [] -> reverse acc
-        | j == n = reverse acc
+        | j == 0 = case a of
+                     c0 : _ -> go 1 a (c0 : acc)
+                     []     -> Right (reverse acc)
+        | j == m = Right (reverse acc)
         | otherwise =
             let pairs = zip a (drop 1 a)
-                a' =
-                  [ (aNext - aCur) / (xs !! (i + j) - xs !! i)
-                  | (i, (aCur, aNext)) <- zip [0 ..] pairs
-                  , i + j < n
-                  ]
-             in case a' of
-                  c : _ -> go (j + 1) a' (c : acc)
-                  [] -> reverse acc
-   in if null ys then [] else go 0 ys []
+                stepAt i (aCur, aNext) = do
+                  let den = xs !! (i + j) - xs !! i
+                  if den == 0
+                    then Left (EngineError "divided differences: duplicate X encountered")
+                    else Right ((aNext - aCur) / den)
+            in do
+              a' <- sequence [ stepAt i p | (i, p) <- zip [0..] pairs, i + j < m ]
+              case a' of
+                c : _ -> go (j + 1) a' (c : acc)
+                []    -> Right (reverse acc)
+  in if null ys then Right [] else go 0 ys []
 
 evalNewton :: [X] -> [Y] -> X -> Y
 evalNewton xs coeffs x =
   case reverse (zip xs coeffs) of
-    [] -> 0
-    ((_, cj) : rest) -> foldl (\acc (xi, ci) -> ci + (x - xi) * acc) cj rest
+    []              -> 0
+    ((_, cj) : rest)-> foldl (\acc (xi, ci) -> ci + (x - xi) * acc) cj rest

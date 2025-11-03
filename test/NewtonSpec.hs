@@ -1,19 +1,19 @@
 module NewtonSpec (spec) where
 
-import Interpolation.Newton (
-  newtonEvalAt,
-  newtonRequiredWindowSize,
-  newtonSafeInterval,
- )
+import Interpolation.Newton
+  ( newtonEvalAt
+  , newtonRequiredWindowSize
+  , newtonSafeInterval
+  )
 import Test.Hspec
 import Test.QuickCheck
-import Types (
-  Interval (..),
-  NewtonConfig (..),
-  Point (..),
-  Window (..),
-  WindowSize (..),
- )
+import Types
+  ( Interval (..)
+  , NewtonConfig (..)
+  , Point (..)
+  , Window (..)
+  , WindowSize (..)
+  )
 
 approx :: Double -> Double -> Bool
 approx a b = abs (a - b) <= 1e-9
@@ -33,35 +33,44 @@ spec = describe "Newton interpolation" $ do
   describe "safeInterval" $ do
     it "even n=4 uses middle pair [x1,x2]" $ do
       let cfg = NewtonConfig (WindowSize 4)
-          xs = [1, 2, 3, 4]
-          w = Window [Point x (x * x) | x <- xs]
-      newtonSafeInterval cfg w `shouldBe` Interval 2 3
+          xs  = [1, 2, 3, 4]
+          w   = Window [Point x (x*x) | x <- xs]
+      newtonSafeInterval cfg w `shouldBe` Right (Interval 2 3)
 
     it "odd n=3 uses [x1,x2]" $ do
       let cfg = NewtonConfig (WindowSize 3)
-          xs = [10, 20, 30]
-          w = Window [Point x (x * x) | x <- xs]
-      newtonSafeInterval cfg w `shouldBe` Interval 20 30
+          xs  = [10, 20, 30]
+          w   = Window [Point x (x*x) | x <- xs]
+      newtonSafeInterval cfg w `shouldBe` Right (Interval 20 30)
 
   describe "evalAt: exactness on polynomials of degree < n" $ do
     it "exact on cubic with n=4 (unit)" $ do
       let coeffs = [1, -2, 0.5, 0.1]
-          cfg = NewtonConfig (WindowSize 4)
-          xs = [-1, 0, 2, 5]
-          w = Window [Point x (polyEval coeffs x) | x <- xs]
-          Interval l r = newtonSafeInterval cfg w
-          xMid = (l + r) / 2
-      newtonEvalAt cfg w xMid `shouldSatisfy` approx (polyEval coeffs xMid)
+          cfg    = NewtonConfig (WindowSize 4)
+          xs     = [-1, 0, 2, 5]
+          w      = Window [Point x (polyEval coeffs x) | x <- xs]
+      case newtonSafeInterval cfg w of
+        Left err -> expectationFailure ("safeInterval failed: " <> show err)
+        Right (Interval l r) ->
+          let xMid = (l + r) / 2
+          in case newtonEvalAt cfg w xMid of
+               Right y -> y `shouldSatisfy` approx (polyEval coeffs xMid)
+               Left e  -> expectationFailure ("newtonEvalAt failed: " <> show e)
 
     it "property: exact on quadratic with n=3" $
       property $ \(Finite c0) (Finite c1) (Finite c2) ->
         forAll genStartStep $ \(s, t) ->
           let cfg = NewtonConfig (WindowSize 3)
-              xs = mkXs 3 s t
-              w = Window [Point x (c0 + c1 * x + c2 * x * x) | x <- xs]
-              Interval l r = newtonSafeInterval cfg w
-           in forAll (choose (l, r)) $ \x ->
-                approx (newtonEvalAt cfg w x) (c0 + c1 * x + c2 * x * x)
+              xs  = mkXs 3 s t
+              w   = Window [Point x (c0 + c1*x + c2*x*x) | x <- xs]
+          in case newtonSafeInterval cfg w of
+               Left err -> counterexample ("safeInterval failed: " <> show err) False
+               Right (Interval l r) ->
+                 forAll (choose (l, r)) $ \x ->
+                   either
+                     (const False)
+                     (\y -> approx y (c0 + c1*x + c2*x*x))
+                     (newtonEvalAt cfg w x)
 
 newtype Finite = Finite Double deriving (Show)
 instance Arbitrary Finite where
@@ -70,5 +79,5 @@ instance Arbitrary Finite where
 genStartStep :: Gen (Double, Double)
 genStartStep = do
   s <- choose (-10, 10)
-  t <- choose (0.5, 5)
+  t <- choose (0.5, 5)   -- strictly positive step to keep xs strictly increasing
   pure (s, t)
