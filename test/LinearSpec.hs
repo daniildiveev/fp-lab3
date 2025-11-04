@@ -1,18 +1,18 @@
 module LinearSpec (spec) where
 
-import Interpolation.Linear
-  ( linearEvalAt
-  , linearRequiredWindowSize
-  , linearSafeInterval
-  )
+import Interpolation.Linear (
+  linearEvalAt,
+  linearRequiredWindowSize,
+  linearSafeInterval,
+ )
 import Test.Hspec
 import Test.QuickCheck
-import Types
-  ( Interval (..)
-  , LinearConfig (..)
-  , Point (..)
-  , Window (..)
-  )
+import Types (
+  Interval (..),
+  LinearConfig (..),
+  Point (..),
+  Window (..),
+ )
 
 approx :: Double -> Double -> Bool
 approx a b = abs (a - b) <= 1e-12
@@ -29,21 +29,21 @@ spec = describe "Linear interpolation" $ do
   it "evaluates exactly on a line y = a*x + b" $ do
     let a = 2
         b = 1
-        w = Window [Point 0 (a*0 + b), Point 10 (a*10 + b)]
+        w = Window [Point 0 (a * 0 + b), Point 10 (a * 10 + b)]
     case linearEvalAt LinearConfig w 5 of
-      Right yMid -> yMid `shouldSatisfy` approx (a*5 + b)
-      Left err   -> expectationFailure ("linearEvalAt failed: " <> show err)
+      Right yMid -> yMid `shouldSatisfy` approx (a * 5 + b)
+      Left err -> expectationFailure ("linearEvalAt failed: " <> show err)
 
   it "property: for any a,b and x in [x1,x2], eval matches y=a*x+b" $
     property $ \(Finite a) (Finite b) ->
       let x1 = 1.0 :: Double
           x2 = 4.0
-          w  = Window [Point x1 (a*x1 + b), Point x2 (a*x2 + b)]
-      in forAll (choose (x1, x2)) $ \x ->
-           either
-             (const False)
-             (\y -> approx y (a*x + b))
-             (linearEvalAt LinearConfig w x)
+          w = Window [Point x1 (a * x1 + b), Point x2 (a * x2 + b)]
+       in forAll (choose (x1, x2)) $ \x ->
+            either
+              (const False)
+              (\y -> approx y (a * x + b))
+              (linearEvalAt LinearConfig w x)
 
 newtype Finite = Finite Double deriving (Show)
 instance Arbitrary Finite where
